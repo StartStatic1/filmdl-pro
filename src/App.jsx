@@ -6,8 +6,12 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   const apiKey = import.meta.env.VITE_TMDB_API_KEY;
+  const iptvHost = import.meta.env.VITE_IPTV_HOST;
+  const iptvUser = import.meta.env.VITE_IPTV_USER;
+  const iptvPass = import.meta.env.VITE_IPTV_PASS;
 
   useEffect(() => {
     fetchTrendingMovies();
@@ -42,11 +46,40 @@ export default function App() {
     }
   };
 
-  // Copia o link HTTP para a área de transferência usando o título para a busca automática se necessário
-  const handleCopyLink = (movie) => {
-    const secureUrl = `${window.location.origin}/api/download?title=${encodeURIComponent(movie.title)}`;
-    navigator.clipboard.writeText(secureUrl);
+  // Função para obter o link final resolvido (Bypass de HTTPS/Mixed Content)
+  const fetchRealDownloadUrl = async (movieId) => {
+    try {
+      const res = await fetch(`/api/download?id=${movieId}`);
+      const data = await res.json();
+      return data.downloadUrl;
+    } catch (err) {
+      console.error("Erro ao obter URL real:", err);
+      // Fallback para o link estruturado caso a API falhe
+      return `${iptvHost}/movie/${iptvUser}/${iptvPass}/${movieId}.mp4`;
+    }
+  };
+
+  // Executa o Download Direto sem abrir o player do navegador
+  const handleDownload = async (movie) => {
+    setDownloadingId(movie.id);
+    const realUrl = await fetchRealDownloadUrl(movie.id);
+    
+    // Cria um elemento oculto de download para forçar o navegador a baixar
+    const link = document.createElement('a');
+    link.href = realUrl;
+    link.setAttribute('download', `${movie.title.replace(/[^a-zA-Z0-9]/g, '_')}.mp4`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    setDownloadingId(null);
+  };
+
+  // Copia o Link Real Direto estruturado (ou da CDN se preferir)
+  const handleCopyLink = async (movie) => {
     setCopiedId(movie.id);
+    const realUrl = await fetchRealDownloadUrl(movie.id);
+    navigator.clipboard.writeText(realUrl);
     setTimeout(() => setCopiedId(null), 2000);
   };
 
@@ -81,7 +114,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* Conteúdo Centralizado e mais enxuto */}
+      {/* Conteúdo Principal */}
       <main className="max-w-4xl mx-auto px-4 py-6">
         
         <div className="flex items-center justify-between mb-6">
@@ -100,7 +133,7 @@ export default function App() {
             Nenhum título encontrado na nuvem.
           </div>
         ) : (
-          /* Grid Compacto Estilo Premium */
+          /* Grid Premium de 2 colunas no Mobile */
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
             {movies.map((movie) => {
               const posterUrl = movie.poster_path
@@ -127,7 +160,7 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Informações embaixo do Poster */}
+                  {/* Informações */}
                   <div className="p-3 flex flex-col flex-grow justify-between bg-[#0e1322]">
                     <div className="mb-2.5">
                       <h3 className="font-bold text-xs text-slate-200 line-clamp-1 group-hover:text-cyan-400 transition-colors">
@@ -138,16 +171,16 @@ export default function App() {
                       </p>
                     </div>
 
-                    {/* Botões de Ação Direta */}
+                    {/* Botões de Ação Atualizados */}
                     <div className="space-y-1.5 mt-auto">
-                      <a
-                        href={`/api/download?title=${encodeURIComponent(movie.title)}`}
-                        download
-                        className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-colors shadow-md shadow-cyan-500/5"
+                      <button
+                        onClick={() => handleDownload(movie)}
+                        disabled={downloadingId === movie.id}
+                        className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-[11px] font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-colors shadow-md shadow-cyan-500/5 disabled:opacity-50"
                       >
                         <Download className="w-3.5 h-3.5" />
-                        Download Direto
-                      </a>
+                        {downloadingId === movie.id ? 'Obtendo Link...' : 'Download Direto'}
+                      </button>
 
                       <button
                         onClick={() => handleCopyLink(movie)}
@@ -165,7 +198,7 @@ export default function App() {
                         ) : (
                           <>
                             <Copy className="w-3 h-3" />
-                            Copiar Link
+                            Copiar Link Real
                           </>
                         )}
                       </button>
