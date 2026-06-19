@@ -3,7 +3,6 @@
   "devCommand": "npm run dev",
   "installCommand": "npm ci",
   "framework": "vite",
-  "env": [
     "VITE_TMDB_API_KEY",
     "VITE_DOWNLOAD_HOST_1",
     "VITE_DOWNLOAD_HOST_2"
