@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Download, Copy, Check, Film, Tv, Search, ExternalLink } from 'lucide-react';
+import { Download, Copy, Check, Film, Tv, Search } from 'lucide-react';
 
 export default function App() {
   const [movies, setMovies] = useState([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
-  const [downloadingId, setDownloadingId] = useState(null);
+  const [customIds, setCustomIds] = useState({});
 
-  // Variáveis de ambiente configuradas no Vercel
   const apiKey = import.meta.env.VITE_TMDB_API_KEY;
   const iptvHost = import.meta.env.VITE_IPTV_HOST;
   const iptvUser = import.meta.env.VITE_IPTV_USER;
@@ -47,12 +46,18 @@ export default function App() {
     }
   };
 
-  // Gera o link padrão do painel IPTV
+  // Retorna o link HTTP limpo caso queira apenas copiar para colar em apps de IPTV
   const generateIptvUrl = (movieId) => {
-    return `${iptvHost}/movie/${iptvUser}/${iptvPass}/${movieId}.mp4`;
+    const finalStreamId = customIds[movieId] || movieId;
+    return `${iptvHost}/movie/${iptvUser}/${iptvPass}/${finalStreamId}.mp4`;
   };
 
-  // Copia o link padrão estruturado e avisa o usuário
+  // Nova lógica de download usando nossa rota segura HTTPS do Vercel
+  const getSecureDownloadUrl = (movieId) => {
+    const finalStreamId = customIds[movieId] || movieId;
+    return `/api/download?id=${finalStreamId}`;
+  };
+
   const handleCopyLink = (movieId) => {
     const finalUrl = generateIptvUrl(movieId);
     navigator.clipboard.writeText(finalUrl);
@@ -60,11 +65,8 @@ export default function App() {
     setTimeout(() => setCopiedId(null), 2000);
   };
 
-  // SOLUÇÃO PARA MOBILE: Dispara um Intent para abrir direto no reprodutor de vídeo externo (VLC)
-  const getVlcIntentUrl = (movieId) => {
-    const rawUrl = generateIptvUrl(movieId);
-    const cleanUrl = rawUrl.replace('http://', '');
-    return `intent://${cleanUrl}#Intent;scheme=http;type=video/*;package=org.videolan.vlc;end`;
+  const handleCustomIdChange = (movieId, value) => {
+    setCustomIds(prev => ({ ...prev, [movieId]: value }));
   };
 
   return (
@@ -80,7 +82,6 @@ export default function App() {
             </span>
           </div>
           
-          {/* Barra de Busca */}
           <form onSubmit={handleSearch} className="w-full sm:w-96 relative">
             <input
               type="text"
@@ -104,7 +105,7 @@ export default function App() {
             {search ? `Resultados para: ${search}` : 'Filmes Populares Disponíveis'}
           </h2>
           <span className="text-xs bg-slate-800 px-3 py-1 rounded-full text-slate-400 border border-slate-700">
-            Formato: MP4 / IPTV Player Ready
+            Alvo: Download via HTTPS Bypass
           </span>
         </div>
 
@@ -128,7 +129,7 @@ export default function App() {
               return (
                 <div key={movie.id} className="bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 hover:border-slate-700 transition-all group flex flex-col justify-between shadow-xl">
                   
-                  {/* Imagem do Filme */}
+                  {/* Poster */}
                   <div className="relative aspect-[2/3] overflow-hidden bg-slate-900">
                     <img 
                       src={posterUrl} 
@@ -137,57 +138,63 @@ export default function App() {
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-90" />
-                    
-                    {movie.vote_average > 0 && (
-                      <span className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur text-amber-400 text-xs font-bold px-2 py-1 rounded-md border border-slate-700">
-                        ★ {movie.vote_average.toFixed(1)}
-                      </span>
-                    )}
                   </div>
 
-                  {/* Detalhes e Ações */}
+                  {/* Informações */}
                   <div className="p-4 flex flex-col flex-grow justify-between gap-4">
                     <div>
                       <h3 className="font-bold text-base line-clamp-1 group-hover:text-cyan-400 transition-colors">
                         {movie.title}
                       </h3>
-                      <p className="text-xs text-slate-400 mt-1 line-clamp-2">
-                        {movie.overview || "Sem sinopse disponível em português."}
-                      </p>
+                      
+                      {/* Campo para ajustar o ID do painel */}
+                      <div className="mt-3">
+                        <label className="text-[10px] text-slate-400 block mb-1 font-semibold uppercase tracking-wider">ID do Painel IPTV:</label>
+                        <input 
+                          type="text" 
+                          placeholder={`Ex: 1289967`}
+                          value={customIds[movie.id] || ''}
+                          onChange={(e) => handleCustomIdChange(movie.id, e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 rounded-lg py-1 px-2.5 text-xs text-cyan-400 focus:outline-none focus:border-slate-700"
+                        />
+                      </div>
                     </div>
 
+                    {/* Botões de Ação */}
                     <div className="flex flex-col gap-2 mt-auto">
                       
-                      {/* Botão 1: Copiar Link para Aplicativos IPTV */}
+                      {/* Botão 1: Baixar Filme usando a rota segura HTTPS */}
+                      <a
+                        href={getSecureDownloadUrl(movie.id)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-slate-950 transition-colors shadow-lg shadow-cyan-500/10"
+                      >
+                        <Download className="w-4 h-4" />
+                        Baixar Filme .MP4
+                      </a>
+
+                      {/* Botão 2: Copiar Link de Download Direto HTTP */}
                       <button
                         onClick={() => handleCopyLink(movie.id)}
-                        className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
+                        className={`w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-medium transition-all ${
                           copiedId === movie.id 
                             ? 'bg-emerald-500 text-white' 
-                            : 'bg-slate-800 text-cyan-400 hover:bg-slate-700 border border-slate-700 hover:border-cyan-500/50'
+                            : 'bg-slate-900 text-slate-300 hover:bg-slate-800 border border-slate-800'
                         }`}
                       >
                         {copiedId === movie.id ? (
                           <>
-                            <Check className="w-4 h-4" />
-                            Copiado para o Player!
+                            <Check className="w-3.5 h-3.5" />
+                            Link Copiado!
                           </>
                         ) : (
                           <>
-                            <Copy className="w-4 h-4" />
-                            Copiar Link IPTV
+                            <Copy className="w-3.5 h-3.5" />
+                            Copiar Link IPTV (HTTP)
                           </>
                         )}
                       </button>
-
-                      {/* Botão 2: Força a abertura direta no VLC Player do Celular */}
-                      <a
-                        href={getVlcIntentUrl(movie.id)}
-                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-slate-950 transition-colors shadow-lg shadow-cyan-500/10"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        Assistir no VLC Mobile
-                      </a>
                     </div>
 
                   </div>
@@ -199,11 +206,9 @@ export default function App() {
         )}
       </main>
 
-      {/* Rodapé */}
       <footer className="border-t border-slate-800 mt-20 bg-slate-950/30 text-slate-500 text-xs py-8">
-        <div className="max-w-7xl mx-auto px-4 text-center flex flex-col gap-2">
-          <p>FilmDL Pro — Desenvolvido com foco em alta performance mobile.</p>
-          <p className="text-slate-600">Os links gerados utilizam redirecionamento compatível com XCIPTV, TiviMate e Smarters Player.</p>
+        <div className="max-w-7xl mx-auto px-4 text-center">
+          <p>FilmDL Pro — Sistema de download com criptografia e bypass de segurança ativo.</p>
         </div>
       </footer>
 
