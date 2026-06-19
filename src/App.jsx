@@ -6,14 +6,14 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
 
-  // Puxa as variáveis de ambiente do Vite
+  // Variáveis de ambiente configuradas no Vercel
   const apiKey = import.meta.env.VITE_TMDB_API_KEY;
   const iptvHost = import.meta.env.VITE_IPTV_HOST;
   const iptvUser = import.meta.env.VITE_IPTV_USER;
   const iptvPass = import.meta.env.VITE_IPTV_PASS;
 
-  // Busca filmes em alta (Tendências) ao carregar a página
   useEffect(() => {
     fetchTrendingMovies();
   }, []);
@@ -47,17 +47,24 @@ export default function App() {
     }
   };
 
-  // FUNÇÃO MESTRE: Monta o link final usando o ID do filme (simulando o stream_id do IPTV)
+  // Gera o link padrão do painel IPTV
   const generateIptvUrl = (movieId) => {
-    // Como os IDs do TMDB são numéricos (ex: 1289967), usamos eles como o stream_id do arquivo .mp4
     return `${iptvHost}/movie/${iptvUser}/${iptvPass}/${movieId}.mp4`;
   };
 
+  // Copia o link padrão estruturado e avisa o usuário
   const handleCopyLink = (movieId) => {
     const finalUrl = generateIptvUrl(movieId);
     navigator.clipboard.writeText(finalUrl);
     setCopiedId(movieId);
-    setTimeout(() => setCopiedId(null), 2000); // Reseta o ícone de copiado após 2 segundos
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // SOLUÇÃO PARA MOBILE: Dispara um Intent para abrir direto no reprodutor de vídeo externo (VLC)
+  const getVlcIntentUrl = (movieId) => {
+    const rawUrl = generateIptvUrl(movieId);
+    const cleanUrl = rawUrl.replace('http://', '');
+    return `intent://${cleanUrl}#Intent;scheme=http;type=video/*;package=org.videolan.vlc;end`;
   };
 
   return (
@@ -121,7 +128,7 @@ export default function App() {
               return (
                 <div key={movie.id} className="bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 hover:border-slate-700 transition-all group flex flex-col justify-between shadow-xl">
                   
-                  {/* Container da Imagem */}
+                  {/* Imagem do Filme */}
                   <div className="relative aspect-[2/3] overflow-hidden bg-slate-900">
                     <img 
                       src={posterUrl} 
@@ -131,7 +138,6 @@ export default function App() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-90" />
                     
-                    {/* Nota do Filme */}
                     {movie.vote_average > 0 && (
                       <span className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur text-amber-400 text-xs font-bold px-2 py-1 rounded-md border border-slate-700">
                         ★ {movie.vote_average.toFixed(1)}
@@ -139,7 +145,7 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Informações e Botões */}
+                  {/* Detalhes e Ações */}
                   <div className="p-4 flex flex-col flex-grow justify-between gap-4">
                     <div>
                       <h3 className="font-bold text-base line-clamp-1 group-hover:text-cyan-400 transition-colors">
@@ -150,10 +156,9 @@ export default function App() {
                       </p>
                     </div>
 
-                    {/* Ações de Download / IPTV */}
                     <div className="flex flex-col gap-2 mt-auto">
                       
-                      {/* Botão Principal: Copiar para Player IPTV */}
+                      {/* Botão 1: Copiar Link para Aplicativos IPTV */}
                       <button
                         onClick={() => handleCopyLink(movie.id)}
                         className={`w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold transition-all ${
@@ -175,15 +180,13 @@ export default function App() {
                         )}
                       </button>
 
-                      {/* Botão Secundário: Download Direto no Navegador */}
+                      {/* Botão 2: Força a abertura direta no VLC Player do Celular */}
                       <a
-                        href={generateIptvUrl(movie.id)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl text-xs font-medium bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 transition-colors"
+                        href={getVlcIntentUrl(movie.id)}
+                        className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-slate-950 transition-colors shadow-lg shadow-cyan-500/10"
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        Download Direto .mp4
+                        <ExternalLink className="w-4 h-4" />
+                        Assistir no VLC Mobile
                       </a>
                     </div>
 
@@ -196,11 +199,11 @@ export default function App() {
         )}
       </main>
 
-      {/* Rodapé explicativo */}
+      {/* Rodapé */}
       <footer className="border-t border-slate-800 mt-20 bg-slate-950/30 text-slate-500 text-xs py-8">
         <div className="max-w-7xl mx-auto px-4 text-center flex flex-col gap-2">
           <p>FilmDL Pro — Desenvolvido com foco em alta performance mobile.</p>
-          <p className="text-slate-600">Os links gerados utilizam redirecionamento dinâmico compatível com XCIPTV, TiviMate e Smartes Player.</p>
+          <p className="text-slate-600">Os links gerados utilizam redirecionamento compatível com XCIPTV, TiviMate e Smarters Player.</p>
         </div>
       </footer>
 
